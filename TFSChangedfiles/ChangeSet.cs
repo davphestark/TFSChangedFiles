@@ -12,5 +12,11 @@ namespace TFSChangedfiles
         public string type { get; set; }
         public DateTime checkIn { get; set; }
         public string user { get; set; }
+        public void Init(int id, DateTime date, string userName )
+        {
+            ID = id;
+            checkIn = date;
+            user = userName;
+        }
     }
 }

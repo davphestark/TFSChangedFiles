@@ -28,7 +28,7 @@ namespace TFSChangedfiles
             else {
                 startString = "stingray/";
             }
-
+            //connect to TFS
             TfsTeamProjectCollection tfs = null;
             tfs = new TfsTeamProjectCollection(new Uri("###ADD URI TO YOU TFS PROJECT COLLECTION HERE###"));
             VersionControlServer vcs = tfs.GetService<VersionControlServer>();
@@ -38,9 +38,9 @@ namespace TFSChangedfiles
                 foreach (Changeset csItem in changesetItems) {
                     ProcessChangeSet(csItem, args[2]);                        
                 }
-                
-                WriteOutInfo();
-                
+                var writeOutput = new WriteOutput();
+                writeOutput.Init(resultsFile, Tasks);
+                writeOutput.WriteOutTasksWithChangesets();                
             }
             catch (Exception e) { 
                 Console.WriteLine("Error: " +e.Message);
@@ -55,21 +55,13 @@ namespace TFSChangedfiles
 
             if (csItem.AssociatedWorkItems.Length > 0)
             {
-                taskName = csItem.AssociatedWorkItems[0].Id + " " + csItem.AssociatedWorkItems[0].WorkItemType;
+                taskName = GetTaskNameFromChangeSet(csItem);
             }
-            TaskInfo task = Tasks.Find(t => String.Equals(t.ID, taskName));
-            if (task == null)
-            {
-                task = new TaskInfo();
-                isNewTask = true;
-                task.ID = taskName;
-            }
-
+            var task = FindOrCreateTask(taskName, ref isNewTask);
+            
             ChangeSet cSet = new ChangeSet();
-            cSet.checkIn = csItem.CreationDate;
-            cSet.ID = csItem.ChangesetId;
-            cSet.user = csItem.Committer;
-           
+            cSet.Init(csItem.ChangesetId, csItem.CreationDate, csItem.Committer);
+                       
             if (String.Equals(user, cSet.user, StringComparison.CurrentCultureIgnoreCase))
             {
                 foreach (Change changedItem in csItem.Changes)
@@ -80,60 +72,22 @@ namespace TFSChangedfiles
                 if (isNewTask) { Tasks.Add(task); }
             }
         }
-        public void WriteOutInfo()
+
+        private TaskInfo FindOrCreateTask(string taskName, ref bool isNewTask)
         {
-            int fileCount = 0;
-            StreamWriter oWrite = new StreamWriter(new FileStream(resultsFile, FileMode.Create, FileAccess.Write));
-            foreach (TaskInfo task in Tasks)
+            TaskInfo task = Tasks.Find(t => String.Equals(t.ID, taskName));
+            if (task == null)
             {
-                oWrite.WriteLine(task.ID);
-                foreach (ChangeSet cs in task.changeSet)
-                {
-                    oWrite.WriteLine("     ChangeSet:" + cs.ID + " by: " + cs.user + " on:" + cs.checkIn.ToString("MM/dd/yyyy HH:mm"));
-                    foreach (string file in cs.fileNames)
-                    {
-                        oWrite.WriteLine("       " + file);
-                        fileCount++;
-                    }
-                }
+                task = new TaskInfo();
+                task.ID = taskName;
+                isNewTask = true;
             }
-            if (fileCount > 0)
-            {
-                oWrite.WriteLine("--------------------------");
-                oWrite.WriteLine("Total Files: " + fileCount);
-                oWrite.WriteLine("");
-                WriteFilesPerTask(oWrite);                
-            }
-            oWrite.Close();
+            return task;
         }
-        public void WriteFilesPerTask(StreamWriter oWrite)
+        private string GetTaskNameFromChangeSet(Changeset csItem)
         {
-            foreach (TaskInfo task in Tasks)
-            {
-                oWrite.WriteLine(task.ID + ":");
-                oWrite.WriteLine("");
-                List<string> files = new List<string>(); 
-                foreach (ChangeSet cs in task.changeSet)
-                {
-                    foreach (string file in cs.fileNames)
-                    {
-                        string filename = files.Find(f => String.Equals(f, file));
-                        if (filename == null)
-                        {
-                            files.Add(file);
-                        }
-                    }
-                }
-                files.Sort();
-                foreach (string file in files)
-                {
-                    oWrite.WriteLine(file);
-                }
-                oWrite.WriteLine("--------------------------");
-                oWrite.WriteLine("Files: " + files.Count);
-                oWrite.WriteLine("");
-            }
- 
+            return csItem.AssociatedWorkItems[0].Id + " " + csItem.AssociatedWorkItems[0].WorkItemType;
         }
+
     }
 }
